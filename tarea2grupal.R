@@ -194,4 +194,4 @@ head(trees)
 k <- length(trees[,-3])
 cooks_table$cookD_calc <- ((cooks_table$residuals_standard^2)*cooks_table$h)/((k+1)*(1-cooks_table$h)) # k+1 => k: numero de variables predictoras
 head(cooks_table, 5)
-vif(modelo)
+
