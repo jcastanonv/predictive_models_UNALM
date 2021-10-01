@@ -31,7 +31,6 @@ hist(trees$Girth, main='Histogram of Girth')
 par(mfrow=c(1,1))
 
 
-
 ggplot(trees, aes(x=Girth, y=Volume)) + geom_point(size=3) + geom_smooth(method = lm)
 ggplot(trees, aes(x=Height, y=Volume)) + geom_point(size=3) + geom_smooth(method = lm)
 ggplot(trees, aes(x=Height, y=Girth)) + geom_point(size=3)
