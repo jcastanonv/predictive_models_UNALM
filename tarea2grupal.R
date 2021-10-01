@@ -18,6 +18,7 @@ library(corrplot)
 library(psych)
 library(lmtest)
 library(car)
+library(tidymodels)
 
 data(trees)
 attach(trees)
@@ -87,6 +88,7 @@ ggplot(se_table_melt, aes(Var1, value)) + geom_line(aes(colour = Var2))
 se_table <- data.frame(se_table)
 se_table$SS <- ((se_table$originals-se_table$predicts)^2)
 SE <- sqrt(sum(se_table$SS)/(length(se_table$originals)-3))
+
 summary(modelo) # Residual standard error : 3.882 = SE
 
 
@@ -194,4 +196,59 @@ head(trees)
 k <- length(trees[,-3])
 cooks_table$cookD_calc <- ((cooks_table$residuals_standard^2)*cooks_table$h)/((k+1)*(1-cooks_table$h)) # k+1 => k: numero de variables predictoras
 head(cooks_table, 5)
+se_table <- cooks_table
+# 14.
+matrix_trees <- trees[, 1:2]
+matrix_trees$r <- c(rep(1, 31))
+matrix_trees <- matrix_trees[, c(3,1,2)]
+matrix_trees <- as.matrix(matrix_trees)
+vcov(modelo)
+(SE^2)*solve(t(matrix_trees)%*%(matrix_trees))
+
+# 15.
+vif(modelo)
+# El factor de inflación de varianza (VIF) muestra que tanto para la variable Girth como Height
+# toma valores menores a 10, lo que significa que ambas variables entran al modelo
+
+# 16.
+
+division <- trees %>% initial_split(prop = 0.7, strata = Volume)
+training_set <- division  %>%  training()
+testing_set <- division  %>%  testing() 
+
+length(training_set$Volume)
+length(testing_set$Volume)
+
+# 17. 
+modelo_train <- lm(Volume ~ Girth + Height, data = training_set)
+
+#18.
+predicts <- cbind(predict(modelo, testing_set[, 1:2]))
+predicts_table <- cbind(predicts, c(testing_set[,3]))
+colnames(predicts_table) <- c('predicts', 'originals')
+predicts_table <- as.data.frame(predicts_table)
+
+#19.
+install.packages('MLmetrics')
+library(MLmetrics)
+mean((predicts_table$original-predicts_table$predicts)^2)
+MSE(predicts_table$predicts, predicts_table$original)
+
+# 20. 
+
+# Según los resultados del anova el MSE es 12.1 (es el resultado de dividir la suma de 
+# de cuadrados del error entre n - k - 1) donde (k es numero de coeficientes = 3,
+# n es el tamaño de la muestra = 21), mientras que el MSE calculado resultó 13.47 (es
+# el resultado de la división entre n).
+
+# 21.
+library(plotly)
+fig <- plot_ly(x = trees$Girth, y = trees$Height, z = trees$Volume)
+
+# 22.
+install.packages('multivator')
+library(multivator)
+beta_hat()
+
+
 
