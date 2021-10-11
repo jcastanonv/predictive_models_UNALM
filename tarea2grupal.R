@@ -6,7 +6,9 @@ install.packages('psych')
 install.packages("MVN")
 install.packages('BSDA')
 install.packages('olsrr')
+install.packages('MLmetrics')
 
+library(MLmetrics)
 library(olsrr)
 library(BSDA)
 library(MVN)
@@ -111,6 +113,8 @@ pf(254.9723,3,28, lower.tail = FALSE)
 
 summary(modelo)
 anova(modelo)
+r2 <- anova(modelo)
+r2
 r2 <-1 - (r2$`Sum Sq`[3]/(sum(r2$`Sum Sq`)))
 r2_adj <- 1 - (((1-r2)*(length(trees$Volume)-1))/(length(trees$Volume)-length(trees[,-3])-1))
 
@@ -228,8 +232,7 @@ colnames(predicts_table) <- c('predicts', 'originals')
 predicts_table <- as.data.frame(predicts_table)
 
 #19.
-install.packages('MLmetrics')
-library(MLmetrics)
+
 mean((predicts_table$original-predicts_table$predicts)^2)
 MSE(predicts_table$predicts, predicts_table$original)
 
@@ -242,7 +245,7 @@ MSE(predicts_table$predicts, predicts_table$original)
 
 # 21.
 library(plotly)
-fig <- plot_ly(x = trees$Girth, y = trees$Height, z = trees$Volume)
+
 
 # 22.
 install.packages('multivator')

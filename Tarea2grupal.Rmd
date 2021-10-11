@@ -1,0 +1,495 @@
+---
+title: "Trabajo Grupal 2"
+author: "Jose Castañeda Chilon, Jose Joselito Carhuaricra Cusipuma, Joaquín Antonio Castañón Vilca"
+output:
+  rmdformats::downcute:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Librerías
+Las librerías utilizadas son las siguientes:
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+library(olsrr)
+library(BSDA)
+library(MVN)
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+library(ggplot2)
+library(corrplot)
+library(psych)
+library(lmtest)
+library(car)
+library(tidymodels)
+library(reshape2)
+library(MLmetrics)
+library(plotly)
+```
+# Carga de Datos
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+data(trees)
+attach(trees)
+head(trees)
+```
+# Preguntas
+## Pregunta 1
+<div style="text-align: justify"> 
+Construya gráficas apropiadas para las variables (histogramas, diagramas de dispersión por pares, boxplots para datos simétricos y asimétricos
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+par(mfrow=c(2,2))
+boxplot(trees$Height, main='Height', col = 'red')
+boxplot(trees$Girth, main='Girth', col = 'blue')
+hist(trees$Height, main='Histogram of Height')
+hist(trees$Girth, main='Histogram of Girth')
+par(mfrow=c(1,1))
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+ggplot(trees, aes(x=Girth, y=Volume)) + geom_point(size=3) + geom_smooth(method = lm)
+ggplot(trees, aes(x=Height, y=Volume)) + geom_point(size=3) + geom_smooth(method = lm)
+ggplot(trees, aes(x=Height, y=Girth)) + geom_point(size=3)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+cor(trees)
+
+pairs.panels(trees,
+             smooth = TRUE,      # Si TRUE, dibuja ajuste suavizados de tipo loess
+             scale = FALSE,      # Si TRUE, escala la fuente al grado de correlación
+             density = TRUE,     # Si TRUE, añade histogramas y curvas de densidad
+             ellipses = TRUE,    # Si TRUE, dibuja elipses
+             method = "pearson", # Método de correlación (también "spearman" o "kendall")
+             pch = 21,           # Símbolo pch
+             lm = FALSE,         # Si TRUE, dibuja un ajuste lineal en lugar de un ajuste LOESS
+             cor = TRUE,         # Si TRUE, agrega correlaciones
+             jiggle = FALSE,     # Si TRUE, se añade ruido a los datos
+             factor = 2,         # Nivel de ruido añadido a los datos
+             hist.col = 4,       # Color de los histogramas
+             stars = TRUE,       # Si TRUE, agrega el nivel de significación con estrellas
+             ci = TRUE) 
+```
+
+## Pregunta 2
+<div style="text-align: justify"> 
+Ejecute la prueba de bondad de ajuste a una normal trivariada. Interprete.
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+mvn(trees,mvnTest = c("mardia")) # NO
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+mvn(trees,mvnTest = c("hz"))    # NO
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+mvn(trees,mvnTest = c("royston")) # NO
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+mvn(trees,mvnTest = c("dh")) # NO
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+mvn(trees,mvnTest = c("energy")) # NO
+```
+<div style="text-align: justify"> 
+Como se puede observar, ninguna de las pruebas de bondad de ajuste mencionan que es los datos son Normales Multivariados, ya sea por Mardia, Henze-Zirkler, Royston, Doornik-Hansen y E-statistic.
+Sin embargo, por fines académicos se seguira trabajando con una regresión lineal múltiple.
+</div>
+
+## Pregunta 3
+<div style="text-align: justify"> 
+Calcule las correlaciones con la función mixedcor de R
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+cor(trees)
+mixedCor(trees)
+```
+
+## Pregunta 4
+<div style="text-align: justify"> 
+Encuentre los estimadores puntuales y la ecuación de ajuste. Considere la variable "Volume" como la variable respuesta.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+modelo <- lm(Volume~Girth + Height, data = trees)
+summary(modelo)
+```
+
+$Volume = -57.9877 + 4.7082*Girth + 0.3393*Height$
+
+## Pregunta 5
+<div style="text-align: justify"> 
+Interprete el coeficiente de regresión asociada a la variable Girth
+</div>
+
+<div style="text-align: justify"> 
+Por cada pulgada incrementada en la variable Girth, se reflejará como un aumento de 4.7082 pies cubicos en la variable respuesta "Volume". La variable es significativa ya que tiene un valor p menor al valor de significancia de 0.05* (2e-16)
+</div>
+
+## Pregunta 6
+<div style="text-align: justify"> 
+Presente la forma de calcular el Se. Interprete.
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+predicts <- cbind(predict(modelo, trees[,-3]))
+originals <- c(trees$Volume)
+se_table <- cbind(predicts, originals)
+colnames(se_table) <- c('predicts', 'originals')
+se_table_melt <- melt(se_table, id.vars='index', variable.name = 'series')
+head(se_table)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+ggplot(se_table_melt, aes(Var1, value)) + geom_line(aes(colour = Var2))
+```
+
+<div style="text-align: justify"> 
+Calculo del SE:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+se_table <- data.frame(se_table)
+se_table$SS <- ((se_table$originals-se_table$predicts)^2)
+head(se_table)
+
+SE <- sqrt(sum(se_table$SS)/(length(se_table$originals)-3))
+print(SE)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+SE <- sqrt(sum(se_table$SS)/(length(se_table$originals)-3))
+print(SE)
+```
+
+<div style="text-align: justify"> 
+Este valor también se puede obtener de la siguiente manera:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+summary(modelo)
+```
+<div style="text-align: justify"> 
+Residual standard error : $3.882 = SE$
+</div>
+
+## Pregunta 7
+<div style="text-align: justify"> 
+Construya intervalos de confianza para el promedio del volumen y para un valor individual para Girth=11.5 y Height=73.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+y <- mean(trees$Volume)
+
+# promedio
+tsum.test(mean.x=y, s.x=SE, n.x=length(se_table$originals), conf.level=0.95, alternative = 'two.sided')$conf
+
+# valor en especifico
+new <- data.frame(cbind(11.5, 73))
+predict(modelo, newdata = new, interval = 'prediction', level = 0.95)
+```
+
+## Pregunta 8
+<div style="text-align: justify"> 
+Es la variable Height significativa? Ejecute la prueba de hipótesis completa.Presente la forma de calcular el p-valor.
+</div>
+
+<div style="text-align: justify"> 
+H0 = No es significativo
+H1 = Es significtivo
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+anova(modelo)
+2*pt(2.607, 28, lower.tail = FALSE)
+```
+<div style="text-align: justify"> 
+Dado los resultados, se puede decir que la variable Height es significativa, ya que el valor p es menor al valor de alpha (0.05) por esto no se rechaza la hipótesis nula
+</div>
+
+## Pregunta 9
+<div style="text-align: justify"> 
+Es el modelo significativo? Ejecute la prueba de hipótesis completa.Presente la forma de calcular el p-valor. 
+</div>
+
+<div style="text-align: justify"> 
+H0 = No es significativo
+H1 = Es significtivo
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+g <- summary(modelo)
+g$fstatistic
+pf(254.9723,3,28, lower.tail = FALSE)
+```
+<div style="text-align: justify"> 
+El modelo es significativo ya que el valor p calculado es menor al alpha establecido, por ende no se rechaza la hipótesis nula.
+</div>
+
+## Pregunta 10
+<div style="text-align: justify"> 
+Presente la forma de calcular el R2 ajustado e interprete
+</div>
+<div style="text-align: justify"> 
+El valor de R2 se puede obtener mediante el siguiente comando:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+summary(modelo)
+```
+<div style="text-align: justify"> 
+Pero también se puede calcular de la siguiente forma
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+r2 <- anova(modelo)
+r2 <-1 - (r2$`Sum Sq`[3]/(sum(r2$`Sum Sq`)))
+r2_adj <- 1 - (((1-r2)*(length(trees$Volume)-1))/(length(trees$Volume)-length(trees[,-3])-1))
+print(r2)
+print(r2_adj)
+```
+<div style="text-align: justify"> 
+Como resultado se tiene que el modelo tiene un 94.8% de que los datos se ajusten al modelo establecido con las 2 variables (Height y Girth) y así obtener el Volume
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+trees$predicted <- predict(modelo)
+trees$residuals <- residuals(modelo)
+ggplot(trees, aes(x = Height, y = Volume)) +
+  geom_smooth(method = "lm", se = FALSE, color = "lightgrey") +     # regression line  
+  geom_segment(aes(xend = Height, yend = predicts), alpha = .2) +      # draw line from point to line
+  geom_point(aes(color = abs(residuals), size = abs(residuals))) +  # size of the points
+  scale_color_continuous(low = "green", high = "red") +             # colour of the points mapped to residual size - green smaller, red larger
+  guides(color = FALSE, size = FALSE) +                             # Size legend removed
+  geom_point(aes(y = predicts), shape = 1) +
+  theme_bw()
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+ggplot(trees, aes(x = Girth, y = Volume)) +
+  geom_smooth(method = "lm", se = FALSE, color = "lightgrey") +     # regression line  
+  geom_segment(aes(xend = Girth, yend = predicts), alpha = .2) +      # draw line from point to line
+  geom_point(aes(color = abs(residuals), size = abs(residuals))) +  # size of the points
+  scale_color_continuous(low = "green", high = "red") +             # colour of the points mapped to residual size - green smaller, red larger
+  guides(color = FALSE, size = FALSE) +                             # Size legend removed
+  geom_point(aes(y = predicts), shape = 1) +
+  theme_bw()
+```
+
+## Pregunta 11
+<div style="text-align: justify"> 
+Calcule los residuales. Interprete.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+predicts <- cbind(predict(modelo, trees[,-3]))
+originals <- c(trees$Volume)
+se_table <- cbind(predicts, originals)
+colnames(se_table) <- c('predicts', 'originals')
+se_table <- data.frame(se_table)
+se_table$residuals <- residuals(modelo)
+head(se_table)
+```
+<div style="text-align: justify"> 
+El como se puede observar, existe un grado de cuanto a la predicción del Volume con el modelo, principalmente con los 3 primeros datos, pudiendo ser estos outliers. Para obtener un mejor modelo se recomienda poder extraer una mayor cantidad de datos.
+</div>
+
+<div style="text-align: justify"> 
+H0 = Los residuales son homocedasticos, varianza constante
+H1 = Los residuales no homocedasticos (Heterosedasticos)
+</div>
+
+<div style="text-align: justify"> 
+Graficar los residuos frente a los valores ajustados por el modelo, e identificar si existe un patrón cónico u otro patrón. Idealmente deberían distribuirse de forma aleatoria en torno a 0. También podemos recurrir al test de Breusch-Pagan como contraste de homocedasaticidad. 
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+#no estandarizada
+plot(modelo, which=1, col=c("red"))
+
+bptest(modelo)
+```
+
+<div style="text-align: justify"> 
+valor p = 0.2911 > 0.05, no se rechaza la H0, es decir que los residuos tienen varianza constante
+</div>
+
+## Pregunta 12
+<div style="text-align: justify"> 
+Calcule los residuales estandarizados y estudentizados. Interprete.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+#estandarizada y estudientizado
+se_table$residuals_standard <- rstandard(modelo)
+se_table$residuals_studentized <- rstudent(modelo)
+# standarized graph
+plot(modelo, which=2, col=c("red"))
+ols_plot_resid_stand(modelo)
+
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+# studentized graph
+hist(se_table$residuals_studentized, freq = FALSE)
+qqPlot(modelo)
+ols_plot_resid_stud(modelo)
+```
+
+<div style="text-align: justify"> 
+Lo que puede observar es que los valores residuales estandarizados y estudiantizados tienden a acercarse a la linea de 45º, por lo que, podemos decir que los valores de los residuales poseen una distribución normal
+</div>
+
+## Pregunta 13
+<div style="text-align: justify"> 
+Presente la forma de calcular la distancia de Cook de los cinco primeros registros. Interprete.
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+ols_plot_cooksd_bar(modelo)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+ols_plot_resid_lev(modelo)
+```
+<div style="text-align: justify"> 
+Se puede observar que los registros 20 y 31 son outliers
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+cooksD <- cooks.distance(modelo)
+se_table$cooksD <- cbind(cooksD)
+head(se_table)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+influential <- cooksD[(cooksD > (3*mean(cooksD, na.rm = TRUE)))]
+influential
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+cooks_table <- se_table
+```
+
+
+<div style="text-align: justify"> 
+Calculo manual:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+Hmat <- hatvalues(modelo)
+cooks_table$h <- c(Hmat)
+data(trees)
+attach(trees)
+head(trees)
+k <- length(trees[,-3])
+cooks_table$cookD_calc <- ((cooks_table$residuals_standard^2)*cooks_table$h)/((k+1)*(1-cooks_table$h)) # k+1 => k: numero de variables predictoras
+```
+<div style="text-align: justify"> 
+En la tabla cooks_table, en la columna "cookD_calc" se muestran los resultados de la distancia de cook que antes se calculo con la formula:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+head(cooks_table, 5)
+```
+
+#Pregunta 14
+<div style="text-align: justify"> 
+Presente detalladamente la forma de calcular la matriz variancias-covariancias del vector de estimadores de beta.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+matrix_trees <- trees[, 1:2]
+matrix_trees$r <- c(rep(1, 31))
+matrix_trees <- matrix_trees[, c(3,1,2)]
+matrix_trees <- as.matrix(matrix_trees)
+vcov(modelo)
+(SE^2)*solve(t(matrix_trees)%*%(matrix_trees))
+```
+
+## Pregunta 15
+<div style="text-align: justify"> 
+Calcule el VIF. Comente sus resultados
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+vif(modelo)
+```
+<div style="text-align: justify"> 
+El factor de inflación de varianza (VIF) muestra que tanto para la variable Girth como Height toma valores menores a 10, lo que significa que ambas variables entran al modelo.
+</div>
+
+## Pregunta 16
+<div style="text-align: justify"> 
+Elija al azar 70% de los datos y proceda a ejecutar la RLM para obtener la ecuación de ajuste.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+division <- trees %>% initial_split(prop = 0.7, strata = Volume)
+training_set <- division  %>%  training()
+testing_set <- division  %>%  testing() 
+
+length(training_set$Volume)
+length(testing_set$Volume)
+```
+<div style="text-align: justify"> 
+Desarrollo de RLM:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+modelo_train <- lm(Volume ~ Girth + Height, data = training_set)
+summary(modelo_train)
+```
+
+## Pregunta 17
+<div style="text-align: justify"> 
+Con la ecuación obtenida en el paso anterior, calcule los valores ajustados del 30% restante
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+predicts <- cbind(predict(modelo, testing_set[, 1:2]))
+predicts_table <- cbind(predicts, c(testing_set[,3]))
+colnames(predicts_table) <- c('predicts', 'originals')
+predicts_table <- as.data.frame(predicts_table)
+predicts_table
+```
+
+## Pregunta 18
+<div style="text-align: justify"> 
+Calcule el MSE del 30% restante.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+mean((predicts_table$original-predicts_table$predicts)^2)
+MSE(predicts_table$predicts, predicts_table$original)
+```
+
+## Pregunta 19
+<div style="text-align: justify"> 
+Explique la diferencia entre el cuadrado medio del error del análisis de variancia y el MSE
+</div>
+
+<div style="text-align: justify"> 
+Según los resultados del anova el MSE es 12.1 (es el resultado de dividir la suma de cuadrados del error entre n - k - 1) donde (k es numero de coeficientes = 3, n es el tamaño de la muestra = 21), mientras que el MSE calculado resultó 13.47 (es el resultado de la división entre n).
+</div>
+
+## Pregunta 20
+<div style="text-align: justify"> 
+Grafique los datos en 3D usando R
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+fig <- plot_ly(x = trees$Girth, y = trees$Height, z = trees$Volume)
+fig
+```
+
+
+
+
+
+
+
+
+
+
+
+
