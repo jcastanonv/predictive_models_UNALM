@@ -191,6 +191,7 @@ Para el modelo de vallas, el componente de vallas cero describe la probabilidad 
 
 * Zeileis, A., Kleiber, C., & Jackman, S. (2008). Regression models for count data in R. *Journal of statistical software*, 27(8), 1-25.
 </div>
+# aasdf
 
 
 
