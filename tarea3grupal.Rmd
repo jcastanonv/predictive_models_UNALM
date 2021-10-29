@@ -1,0 +1,200 @@
+---
+title: "Trabajo de intervención grupal"
+author: "Jose Castañeda Chilon, Jose Joselito Carhuaricra Cusipuma, Joaquín Antonio Castañón Vilca"
+output:
+  rmdformats::downcute:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Librerías
+Las librerías utilizadas son las siguientes:
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+library(MixAll)
+library(MASS)
+library(pscl)
+library(sandwich)
+library(car)
+library(lmtest)
+```
+# Carga de Datos
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+data(DebTrivedi)
+df <- DebTrivedi[, c(1, 6:8, 13, 15, 18)]
+str(df)
+```
+## Descripción de variables
+<div style="text-align: justify"> 
+* **ofp:** como variable dependiente y utilizar las variables de estado de salud, número de visitas al consultorio médico.
+
+* **hosp:** número de estancias hospitalarias.
+
+* **health:** estado de salud autopercibido.
+
+* **numchron:** número de condiciones crónicas.
+
+* Así como las variables socioeconómicas **gender**, **school** (número de años de educación) y **privins** (privado indicador de seguro) como varaibles independientes.
+
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+plot(table(df$ofp))
+plot(ofp ~ numchron, data = df)
+```
+
+<div style="text-align: justify"> 
+Para transformar una variable de conteo en un factor (solo con fines de visualización), definimos otra función de conveniencia cfac ().
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+clog <- function(x) log(x + 0.5)
+cfac <- function(x, breaks = NULL) {
+  if(is.null(breaks)) breaks <- unique(quantile(x, 0:10/10))
+  x <- cut(x, breaks, include.lowest = TRUE, right = FALSE)
+  levels(x) <- paste(breaks[-length(breaks)], ifelse(diff(breaks) > 1,
+  c(paste("-", breaks[-c(1, length(breaks))] - 1, sep = ""), "+"), ""),
+  sep = "")
+  return(x)
+}
+```
+
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+plot(clog(ofp) ~ cfac(numchron), data = df)
+
+par(mfrow = c(2,3))
+plot(clog(ofp) ~ health, data = df, varwidth = TRUE, main = 'health', xlab = 'Self−perceived health status', ylab = 'Physician office visits (in clogs)')
+plot(clog(ofp) ~ cfac(numchron), data = df, main = 'numchron', xlab = 'Number of chronic conditions', ylab = 'Physician office visits (in clogs)')
+plot(clog(ofp) ~ privins, data = df, varwidth = TRUE, main = 'privins', xlab = 'Covered by private insurance', ylab = 'Physician office visits (in clogs)')
+plot(clog(ofp) ~ cfac(hosp, c(0:2, 8)), data = df, main = 'hosp',  xlab = 'Number of hospital stays', ylab = 'Physician office visits (in clogs)')
+plot(clog(ofp) ~ gender, data = df, varwidth = TRUE, main = 'gender', xlab = 'Gender', ylab = 'Physician office visits (in clogs)')
+plot(cfac(ofp, c(0:2, 4, 6, 10, 100)) ~ school, data = df, breaks = 9, main = 'school', xlab = 'Number of years of education', ylab = 'Physician office visits (number of visits)')
+```
+
+# Preguntas
+## Explicación del Problema de Hurdle  
+<div style="text-align: justify"> 
+Al igual que el modelo de regresión para datos de conteo cero-inflado, el modelo Hurdle asume la presencia de una mezcla de distribuciones, sólo que dicho modelo tiene una interpretación en dos partes. La primera se refiere a un modelo con variable de respuesta binaria y la segunda a un modelo de datos de conteo truncado-en-cero. En consecuencia, esta configuración en dos partes permite la interpretación de que los valores positivos se generan toda vez que el umbral (Hurdle) en cero se ha cruzado. Por consiguiente, la primera parte modela la probabilidad de que el umbral sea cruzado, mientras que la segunda modela el valor esperado de los valores positivos (Salinas-Rodríguez, Manrique-Espinoza, & Sosa-Rubí, 2009).
+</div>
+
+## Explicación del Problema de Zero-inflated models
+<div style="text-align: justify"> 
+Los modelos inflados cero  son otra clase de modelo capaz de tratar con un exceso de recuentos de cero. Son modelos de mezcla de dos componentes que combinan una masa puntual en cero con una distribución de conteo tal como Poisson, binomio geométrico o negativo. Por tanto, hay dos fuentes de ceros: los ceros pueden provienen tanto de la masa puntual como del componente de recuento. Para modelar lo no observado estado (cero frente a cuenta), se utiliza un modelo binario: en el caso más simple, solo con una intersección pero potencialmente conteniendo regresores (Zeileis, Kleiber, & Jackman, 2008).
+</div>
+
+## Replicación e interpretación de resultados
+### Modelo de Hurdle
+<div style="text-align: justify"> 
+A continuación se muestran los resultados obtenidos después de replicar el código del paper, para el modelo de Hurdle.
+
+El análisis exploratorio transmitió la impresión de que podría haber más observaciones cero que las explicadas por las distribuciones de datos de conteo básico, por lo tanto, se ajusta un modelo de obstáculo binomial negativo mediante
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+hurdle_model1 <- hurdle(ofp ~ ., data = df, dist = "negbin")
+```
+<div style="text-align: justify"> 
+Esto utiliza el mismo tipo de modelo de datos de recuento que en la sección anterior, pero ahora está truncado para ofp <1 y tiene un componente de obstáculo adicional que modela observaciones de cero frente a recuento. De forma predeterminada, el componente de obstáculo es un GLM binomial con enlace logit que contiene todos los regresores utilizados en el modelo de recuento. Las estimaciones de coeficientes asociados y las pruebas de Wald parciales para ambos componentes del modelo se muestran a través de:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+summary(hurdle_model1)
+```
+<div style="text-align: justify"> 
+Al aumento en la probabilidad logarítmica transmite que el modelo ha mejorado al incluir el componente de obstáculo. Sin embargo, podría ser posible omitir la variable de salud del modelo de obstáculos.
+</div>
+<div style="text-align: justify"> 
+Para probar esta hipótesis, el modelo reducido se ajusta mediante:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+hurdle_model2 <- hurdle(ofp ~ . | hosp + numchron + privins + school + gender, data = df, dist = "negbin")
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+summary(hurdle_model2)
+```
+<div style="text-align: justify"> 
+A continuación se realizarán las pruebas de LRtest y Wald Test, ya que, dichas pruebas se utilizan comúnmente para evaluar la diferencia entre modelos anidados, por lo que se puede comparar con el modelo completo en una prueba de Wald, al igual que LRtest. Lo que se muestra que los resultados son identicos.
+</div>
+
+<div style="text-align: justify"> 
+Para ambos la prueba de hipotesis es la sigueinte:
+
+* H0: Los modelos difieren entre si
+
+* H1: Los modelos son virtualmente similares
+</div>
+
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+waldtest(hurdle_model1, hurdle_model2)
+lrtest(hurdle_model1, hurdle_model2)
+```
+<div style="text-align: justify"> 
+Lo que se muestra que los resultados son virtualmente identicos. Dado que para ambas pruebas el valor de p es mayor a 0.05.
+</div>
+
+### Modelo de Zero-inflated models
+<div style="text-align: justify"> 
+A continuación se muestran los resultados obtenidos después de replicar el código del paper, para el modelo de Zero-inflated models:
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+zinb_reg1 <- zeroinfl(ofp ~ ., data = df, dist = "negbin")
+zinb_reg2 <- zeroinfl(ofp ~ . | hosp + numchron + privins + school + gender, data = df, dist = "negbin")
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+waldtest(zinb_reg1, zinb_reg2)
+lrtest(zinb_reg1, zinb_reg2)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+summary(zinb_reg2)
+```
+
+### Compraciones entre modelos
+<div style="text-align: justify"> 
+A continuación se muestra las comparaciones de los dos modelos presentados en el paper:
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+fm <- list("Hurdle-NB" = hurdle_model2, "ZINB" = zinb_reg2)
+sapply(fm, function(x) coef(x)[1:8])
+
+cbind(sapply(fm[-1], function(x) sqrt(diag(vcov(x)))[1:8]))
+
+rbind(logLik = sapply(fm, function(x) round(logLik(x), digits = 0)),
+Df = sapply(fm, function(x) attr(logLik(x), "df")))
+
+round(c("Obs" = sum(df$ofp < 1),
+"NB-Hurdle" = sum(predict(hurdle_model2, type = "prob")[,1]),
+"ZINB" = sum(predict(zinb_reg2, type = "prob")[,1])))
+
+t(sapply(fm[1:2], function(x) round(x$coefficients$zero, digits = 3)))
+```
+<div style="text-align: justify"> 
+Para el modelo de vallas, el componente de vallas cero describe la probabilidad de observar un conteo positivo mientras que, para el modelo ZINB, el componente de inflación cero predice la probabilidad de observar un conteo de cero a partir del componente de masa puntual. En general, ambos modelos conducen a los mismos resultados cualitativos y ajustes de modelo muy similares. Quizás el modelo de obstáculos es ligeramente preferible porque tiene una interpretación más agradable: hay un proceso que controla si un paciente ve a un médico o no, y un segundo proceso que determina cuántas visitas al consultorio se realizan.
+</div>
+# Referencias
+<div style="text-align: justify"> 
+* Salinas-Rodríguez, A., Manrique-Espinoza, B., & Sosa-Rubí, S. G. (2009). Análisis estadístico para datos de conteo: aplicaciones para el uso de los servicios de salud. *Salud Pública de México*, 51, 397-406.
+
+* Zeileis, A., Kleiber, C., & Jackman, S. (2008). Regression models for count data in R. *Journal of statistical software*, 27(8), 1-25.
+</div>
+
+
+
+
+
+
+
