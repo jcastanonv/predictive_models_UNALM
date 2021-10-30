@@ -1,14 +1,15 @@
 install.packages('MixAll')
+library(pacman)
 library(MixAll)
 library(MASS)
-library(pscl)
-library(sandwich)
+p_load(pscl)
+p_load(sandwich)
 library(car)
 library(lmtest)
 
 ?DebTrivedi
 
-?data(DebTrivedi)
+data(DebTrivedi)
 df <- DebTrivedi[, c(1, 6:8, 13, 15, 18)]
 str(df)
 plot(table(df$ofp))
