@@ -129,9 +129,9 @@ A continuación se realizarán las pruebas de LRtest y Wald Test, ya que, dichas
 <div style="text-align: justify"> 
 Para ambos la prueba de hipotesis es la sigueinte:
 
-* H0: Los modelos difieren entre si
+* H0: Los modelos son virtualmente similares
 
-* H1: Los modelos son virtualmente similares
+* H1: Los modelos difieren entre si
 </div>
 
 
@@ -192,8 +192,6 @@ Para el modelo de vallas, el componente de vallas cero describe la probabilidad 
 * Zeileis, A., Kleiber, C., & Jackman, S. (2008). Regression models for count data in R. *Journal of statistical software*, 27(8), 1-25.
 </div>
 # aasdf
-
-
 
 
 
