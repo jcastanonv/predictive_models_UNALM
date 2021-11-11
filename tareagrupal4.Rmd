@@ -1,0 +1,192 @@
+---
+title: "Trabajo Grupal 4"
+author: "Jose Castañeda Chilon, Jose Joselito Carhuaricra Cusipuma, Joaquín Antonio Castañón Vilca"
+output:
+  rmdformats::downcute:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+## Descripción
+
+<div style="text-align: justify"> 
+El conjunto de datos en cuestión trata sobre la lesión hepática (daño hepático) Incluye un marco de datos de predictores biológicos relacionados con el daño hepático bio, un marco de datos de predictores químicos relacionados con la chem y la variable de respuesta que nos interesa, la lesión. Si un modelo se puede ajustar adecuadamente, ese modelo podría usarse para detectar compuestos dañinos en el futuro.
+</div>
+
+## Librerías utilizadas
+<div style="text-align: justify"> 
+Las librerías que se van a utilizar para el análisis se presentan a continuación:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+library(caret)
+library(pROC)
+library(AppliedPredictiveModeling)
+library(glmnet)
+library(pamr)
+data(hepatic)
+```
+
+<div style="text-align: justify"> 
+Antes de ajustar un modelo, siempre es necesario preprocesar los datos. Para los algoritmos de clasificación lineal, esto significa:
+
+* Remove near zero variance predictor variables/ near-zero variance) predictors.
+
+* Remove collinear variables.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+bio_zerovar <- nearZeroVar(bio)
+bio_collinear <- findLinearCombos(cov(bio))$remove
+bio <- bio[, -c(bio_zerovar, bio_collinear)]
+```
+<div style="text-align: justify"> 
+Eliminar las variable problemáticas para 'chem' dataframe
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+chem_zerovar <- nearZeroVar(chem)
+chem_collinear <- findLinearCombos(chem)$remove
+chem <- chem[, -c(chem_zerovar, chem_collinear)]
+```
+<div style="text-align: justify"> 
+La variable de respuesta a la lesión a la que me adapto tiene tres clases: "Ninguna", "Leve" y "Severa". Si la variable de respuesta tiene demasiadas clases, se puede recortar (algo subjetivamente). Por conveniencia, decido dividir las lesiones en 2 clases: "Sí" o "No", donde cuento las lesiones leves como "No". (Advertencia: esto puede influir negativamente en la predicción, por lo que en el futuro me aseguraré de probar las predicciones de probabilidad de varias clases).
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+##Collapse response into "Yes" or "No" values
+lut <- c("None" = "No", "Mild" = "No", "Severe" = "Yes")
+injury2 <- factor(unname(lut[injury]))
+```
+<div style="text-align: justify"> 
+Ahora debería considerar otras preguntas
+
+* Como particionar la base con clases no balanceadas (“No” supera con creces los valores de “Sí” en lesiones.)
+
+* Como validar los resultados del modelo
+
+* qué métrica maximiza el mejor modelo
+
+Por suerte con la función "createDataPartition" se puede realizar la partición de la base automaticamente usando muestras estratificadas para Clases no balanceadas.
+
+Para validación se decide que el modelo tenga una valdiación cruzada con 10 folds repetitivos la cual será especificado en el "traincontrol".Aunque el primer modelo no necesitará validación cruzada, los demás sí por ello se usará el mismo control para cada modelo.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+set.seed(1234)
+
+##Partition the data with stratified sampling
+training <- createDataPartition(injury2, p = .8, list = FALSE)
+##Partition train and test sets for bio data
+bio_train <- bio[training, ]
+bio_test <- bio[-training, ]
+##Partition for train and test sets for chemical data
+chem_train <- chem[training, ]
+chem_test <- chem[-training, ]
+##Partition for the train and test sets for the response variable
+injury_train <- injury2[training]
+injury_test <- injury2[-training]
+## Set training control for model building
+ctrl <- trainControl(method = "repeatedcv", 10, repeats = 10, summaryFunction = twoClassSummary, classProbs = TRUE, savePredictions = TRUE)
+```
+<div style="text-align: justify"> 
+s importante decidir el que objetivo tendrá las métricas de Accuracy, 
+Sensitivity, or Specificity tendrá el modelo. Para ello es necesario saber cual es la variable "positiva" desde la perspectiva de caret.
+
+Caret escoje el primer clase de factor como positivo la cual corresponde a "no" en el vector "injury". Por lo tanto, Sensitivity corresponde a la cantidad de  valores "no" correctamente predichos, mientras que la  Specificity corresponde a los valores "si" correctamente predichos.
+
+Decidir entre esas opciones, parece más importante construir un modelo que  pueda predecir los valores "yes" en el caso resulte un daño hepático. Esto tiene sentido, un error en un modelo que predice que no hay daño hepático sería trágico, por lo que deberíamos hacer todo lo posible para capturar los valores de "Sí" tanto como sea posible, incluso si eso significa sacrificar la precisión. Una mirada a los datos:
+
+El primer modelo es un clasificador que utiliza análisis discriminante lineal donde se aplica un modelo tanto para los indicadores biológicos como para los indicadores químicos, para ver cuáles tienen mejor poder predicativo.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+bio_lda <- train(bio_train, injury_train, method = "lda", trControl = ctrl, metric = "Spec")
+chem_lda <- train(chem_train, injury_train, method = "lda", trControl = ctrl, metric = "Spec")
+##Generate LDA model predictions for bio indicator test set
+bio_lda_pred <- predict(bio_lda, bio_test)
+##Generate confusion matrix to show results
+confusionMatrix(bio_lda_pred, injury_test, positive = "No")
+```
+<div style="text-align: justify"> 
+Tenga en cuenta que la "tasa de no información" es .89, lo que significa que si adivinamos "No" al azar cada vez, el modelo automáticamente acertaría el 89% de las veces. La precisión aquí es .83, que parece tener un rendimiento inferior. Pero recuerde, la precisión no es importante; predecir correctamente los valores verdaderos de "Sí" sí lo es.
+
+Para los predictores biológicos, obtenemos .5 para Especificidad,identificando correctamente 3 valores de Sí pero también generando 3 predicciones falsas negativas para otros 3 valores de Sí; espero que otros modelos puedan hacerlo mejor.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+##Chem predictor LDA model
+chem_lda_pred <- predict(chem_lda, chem_test)
+##confusion matrix
+confusionMatrix(chem_lda_pred, injury_test, positive = "No")
+```
+<div style="text-align: justify"> 
+La LDA para predictores químicos tiene peores resultados en la predicción de
+Los verdaderos valores de Sí. Aquí la especificidad solo alcanza 0.16. Ahora probemos algunos otros modelos para comparar. El primero será un modelo de regresión logística penalizado. Para valores alfa de 1 y lambda 0, se comportará como un modelo de lazo, mientras que con alfa 0 y una lambda distinta de cero, un modelo de regresión de cresta. En cualquier lugar intermedio hay una red elástica. Aquí, no especifico una cuadrícula de ajuste, simplemente dejo que Caret me presente una lista de parámetros, con 'tuneLength = 20'.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+bio_plr <- train(bio_train, injury_train, method = "glmnet", family = "binomial", metric = "Spec", tuneLength = 2,
+                 trControl = ctrl)
+chem_plr <- train(chem_train, injury_train, method = "glmnet", family = "binomial", metric = "Spec", tuneLength = 2, trControl = ctrl)
+bio_plr_pred <- predict(bio_plr, bio_test)
+
+confusionMatrix(bio_plr_pred, injury_test, positive = "No")
+```
+<div style="text-align: justify"> 
+Esta regresión logística penalizada no funciona tan bien como el análisis discriminante lineal simple para los predictores biológicos.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+chem_plr_pred <- predict(chem_plr, chem_test)
+confusionMatrix(chem_plr_pred, injury_test, positive = "No")
+```
+<div style="text-align: justify"> 
+La regresión logística penalizada es aún peor para los predictores químicos. Claramente, este no es un modelo sólido para capturar la estructura de los datos para el patrón que estamos buscando.
+
+Ahora, para ajustar un modelo de regresión de mínimos cuadrados parciales.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+bio_pls <- train(bio_train, injury_train, method = "pls", trControl = ctrl, metric = "Spec", tuneLength = 2)
+
+chem_pls <- train(chem_train, injury_train, method = "pls", trControl = ctrl, metric = "Spec", tuneLength = 2)
+bio_pls_pred <- predict(bio_pls, bio_test)
+
+confusionMatrix(bio_pls_pred, injury_test, positive = "No")
+```
+<div style="text-align: justify"> 
+Solo .16 para la especificidad lograda aquí.
+
+Y para los predictores químicos, obtenemos 0 como se ve a continuación. A los indicadores químicos continuamente les está yendo peor que a los predictores biológicos para predecir la lesión hepática, y todavía no existe un gran modelo, hasta ahora.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+chem_pls_pred <- predict(chem_pls, chem_test, probability = TRUE)
+
+confusionMatrix(chem_pls_pred, injury_test, positive = "No")
+
+bio_centroid <- train(bio_train, injury_train, method = "pam",
+                      
+                      trControl = ctrl, preProcess = c("center", "scale"), metric = "Spec", tuneLength = 2)
+
+chem_centroid <- train(chem_train, injury_train, method = "pam",
+                       
+                       trControl = ctrl, preProcess = c("center", "scale"), metric = "Spec", tuneLength = 2)
+bio_centroid_pred <- predict(bio_centroid, bio_test)
+chem_centroid_pred <- predict(chem_centroid, chem_test)
+confusionMatrix(bio_centroid_pred, injury_test, positive = "No")
+confusionMatrix(chem_centroid_pred, injury_test, positive = "No")
+```
+<div style="text-align: justify"> 
+0 para el indice de especificidad.
+
+Entonces, el mejor modelo para predecir la lesión hepática resulta ser el primer ajuste, el modelo LDA sobre los indicadores biológicos.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+predictions_bio_lda <- predict(bio_lda, bio_test, type = "prob")
+
+pROC::plot.roc(injury_test, predictions_bio_lda$Yes)
+```
+<div style="text-align: justify"> 
+Sin embargo, el área debajo de la curva no es tan alta como quisieramos. Quizás en el futuro sea revisado estos datos y con la finalidad de que se opte por una  diferente manera de predecir lesiones.
+</div>
+
