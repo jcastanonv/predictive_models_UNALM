@@ -1,0 +1,326 @@
+---
+title: "Practica Calificada 3"
+author: "Jose Castañeda Chilon, Jose Joselito Carhuaricra Cusipuma, Joaquín Antonio Castañón Vilca"
+output:
+  rmdformats::downcute:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+# Descripción
+
+<div style="text-align: justify"> 
+PARTE 1. Indicaciones:
+•	Utilice los datos de “diabetes.xlsx” para responder las siguientes preguntas.
+•	Semilla 66666
+•	Partición 80%-20%
+•	Variable target: Outcome
+
+1.	Ejecute una prueba de hipótesis para probar que la variable “Outcome” está balanceada o no.
+2.	Calcule la matriz de correlaciones. Interprete. ¿Deben considerarse todas las variables?, ¿Se pueden reducir la dimensionalidad?
+3.	Presente un análisis exploratorio de los datos. Tablas y gráficos.
+4.	Ejecute la regresión logística para Outcome con la data training.
+5.	Presente la matriz de confusión con la data training.
+6.	¿Qué variables son significativas? Ejecute la prueba de hipótesis respectiva. Construya intervalos de confianza para los coeficientes de regresión al 97.5%.
+7.	Interprete los coeficientes de regresión i y de los exp(i)
+8.	Calcule y presente predicciones para los datos de la hoja “predicción” del archivo “diabetes.xlsx”.
+9.	Presente la matriz de confusión del ajuste realizado con la data test.
+10.	Ejecute la regresión logística con los links: probit, cauchit y cloglog. Presente una tabla comparativa de los valores de la residual deviance. Interprete.
+
+</div>
+
+# Variables
+<div style="text-align: justify"> 
+**Pregnancies**
+**Glucose**
+**BloodPressure**
+**SkinThickness**
+**Insulin**
+**BMI**
+**DiabetesPedigreeFunction**
+**Age**
+**Outcome**
+</div>
+
+# Librerías utilizadas
+<div style="text-align: justify"> 
+Las librerías que se van a utilizar para el análisis se presentan a continuación:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(corrplot)
+library(readxl)
+library(stats)
+library(skimr)
+library(FSinR)
+library(caret)
+library(glm2)
+```
+
+# Lectura de Datos
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+diabetes <- read_excel('diabetes.xlsx')
+diabetes$Outcome <- factor(diabetes$Outcome)
+```
+
+# 1. Prueba de hipótesis para probar que la variable “Outcome” está balanceada
+<div style="text-align: justify"> 
+se puede usar para probar el nulo de que las proporciones (probabilidades de éxito) en varios grupos son las mismas, o que son iguales a ciertos valores dados:
+
+* $H0:p1=p0$: La hipótesis nula es que la proporción de pacientes diagnosticados con diabetes es la misma proporción real de los que no fueron diagnosticados con diabetes.
+
+* $H1:p1>p0$: La alternativa es que esta proporción sea diferente en al menos una de las poblaciones.
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+table(diabetes$Outcome)
+plot(table(diabetes$Outcome), 'bar')
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+prop.test(c(500,268), c(768,768))
+```
+<div style="text-align: justify"> 
+Como se puede observar la variable respuesta (*Outcome*) esta claramentes desbalanceada ya que tiene 500 valores $0$ y 268 valores $1$, además la prueba de hipotesis aplicada, dió como resultado un valor-p mucho menor a 0.05 por lo que no se puede aceptar la Hipotesis Nula, por lo tanto es de esperar que las proporciones sean diferentes. 
+Concluyendose que esta base de datos se encuentra desbalanceada, lo cual puede afectar en el desarrollo de los modelos más adelante.
+</div>
+# 2.	Matriz de Correlaciones
+## ¿Deben considerarse todas las variables?, ¿Se pueden reducir la dimensionalidad?
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+colnames(diabetes)
+numeric.var <- sapply(diabetes, is.numeric)
+corr.matrix <- cor(diabetes[,numeric.var])
+corrplot(corr.matrix, main="\n\nCorrelation Plot for Numerical Variables", order = "hclust", tl.col = "black", tl.srt=45, tl.cex=0.5, cl.cex=0.5)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+colnames(diabetes)
+numeric.var <- sapply(diabetes, is.numeric)
+corr.matrix <- cor(diabetes[,numeric.var])
+corr.matrix
+```
+
+<div style="text-align: justify"> 
+Existe una baja correlación entre las variables, de las cuales las que tienen una correlación de Pearson más fuerte son: Age, Insulin, SkinThickness, BMI y Pregnancies.
+</div>
+
+<div style="text-align: justify"> 
+Se puede realizar un análisis para la reducción de dimensiones ya que se tienen algunas variables con baja correlación, a continuación se realizará dos test para ver la significancia de cada varaible independiente sobre la varaible respuesta.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+set.seed(66666)
+algo_search_hill <- searchAlgorithm(searcher = 'hillClimbing')
+algo_eval_bina <- filterEvaluator(filter = 'binaryConsistency')
+result <- featureSelection(diabetes, 'Outcome', algo_search_hill, algo_eval_bina)
+print(cbind(result[c('evaluationMethod', 'searchMethod')]))
+print(result$bestFeatures)
+```
+<div style="text-align: justify"> 
+Como se puede observar, con la prueba aplicada, se pueden utilziar las variables: *Pregnancies, Glucose, SkinThickness y Age*, como aquellas variables suficientes para realizar una clasificación, es decir, detectar si un paciente tiene diabetes o no.
+</div>
+# 3.	Presente un análisis exploratorio de los datos. Tablas y gráficos.
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+head(diabetes)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+dim(diabetes)
+str(diabetes)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+skim(diabetes)
+cat("Valores nulos en la base de datos:", sum(is.na(diabetes)), "\n")
+summary(diabetes)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+summary(diabetes)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+p1 <- ggplot(diabetes, aes(x=Pregnancies)) + ggtitle("Number of times pregnant") +
+  geom_histogram(aes(y = 100*(..count..)/sum(..count..)), binwidth = 1, colour="black", fill="white") + ylab("Percentage")
+p2 <- ggplot(diabetes, aes(x=Glucose)) + ggtitle("Glucose") +
+  geom_histogram(aes(y = 100*(..count..)/sum(..count..)), binwidth = 5, colour="black", fill="white") + ylab("Percentage")
+p3 <- ggplot(diabetes, aes(x=BloodPressure)) + ggtitle("Blood Pressure") +
+  geom_histogram(aes(y = 100*(..count..)/sum(..count..)), binwidth = 2, colour="black", fill="white") + ylab("Percentage")
+p4 <- ggplot(diabetes, aes(x=SkinThickness)) + ggtitle("Skin Thickness") +
+  geom_histogram(aes(y = 100*(..count..)/sum(..count..)), binwidth = 2, colour="black", fill="white") + ylab("Percentage")
+p5 <- ggplot(diabetes, aes(x=Insulin)) + ggtitle("Insulin") +
+  geom_histogram(aes(y = 100*(..count..)/sum(..count..)), binwidth = 20, colour="black", fill="white") + ylab("Percentage")
+p6 <- ggplot(diabetes, aes(x=BMI)) + ggtitle("Body Mass Index") +
+  geom_histogram(aes(y = 100*(..count..)/sum(..count..)), binwidth = 1, colour="black", fill="white") + ylab("Percentage")
+p7 <- ggplot(diabetes, aes(x=DiabetesPedigreeFunction)) + ggtitle("Diabetes Pedigree Function") +
+  geom_histogram(aes(y = 100*(..count..)/sum(..count..)), colour="black", fill="white") + ylab("Percentage")
+p8 <- ggplot(diabetes, aes(x=Age)) + ggtitle("Age") +
+  geom_histogram(aes(y = 100*(..count..)/sum(..count..)), binwidth=1, colour="black", fill="white") + ylab("Percentage")
+grid.arrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol=2)
+```
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+attach(diabetes)
+par(mfrow=c(2,4))
+boxplot(Pregnancies~Outcome, main="No. of Pregnancies vs. Diabetes", 
+        xlab="Outcome", ylab="Pregnancies")
+boxplot(Glucose~Outcome, main="Glucose vs. Diabetes", 
+        xlab="Outcome", ylab="Glucose")
+boxplot(BloodPressure~Outcome, main="Blood Pressure vs. Diabetes", 
+        xlab="Outcome", ylab="Blood Pressure")
+boxplot(SkinThickness~Outcome, main="Skin Thickness vs. Diabetes", 
+        xlab="Outcome", ylab="Skin Thickness")
+boxplot(Insulin~Outcome, main="Insulin vs. Diabetes", 
+        xlab="Outcome", ylab="Insulin")
+boxplot(BMI~Outcome, main="BMI vs. Diabetes", 
+        xlab="Outcome", ylab="BMI")
+boxplot(DiabetesPedigreeFunction~Outcome, main="Diabetes Pedigree Function vs. Diabetes", xlab="Outcome", ylab="DiabetesPedigreeFunction")
+boxplot(Age~Outcome, main="Age vs. Diabetes", 
+        xlab="Outcome", ylab="Age")
+par(mfrow=c(1,1))
+```
+
+# 4.	Ejecute la regresión logística para Outcome con la data training
+## Separando los datos en training y testing
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+set.seed(66666)
+trainIndex <- createDataPartition(diabetes$Outcome, p = .8,
+                                  list = FALSE,
+                                  times = 1)
+diabetes_train <- diabetes[ trainIndex,]
+diabetes_test <- diabetes[-trainIndex,]
+```
+<div style="text-align: justify"> 
+Después de la separación de los datos de training y testing, se obtuvo que para el entramiento se tiene 615 observaciones mientras que para testing se tendra 153, sumando en total las 768 observaciones de la base original.
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+print(length(diabetes_train$Outcome))
+print(length(diabetes_test$Outcome))
+```
+## Ejecutando una regresión logística con el training
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+model <-glm(Outcome ~.,family=binomial(link='logit'),data=diabetes_train)
+```
+
+# 5.	Presente la matriz de confusión con la data training
+<div style="text-align: justify"> 
+El modelo presento los siguientes resultados predecidos para los datos training:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+diabetes_train$ClassPredicted <- predict(model,newdata=diabetes_train, 'response')
+head(diabetes_train[, c('Outcome', 'ClassPredicted')])
+```
+<div style="text-align: justify"> 
+O también se pueden observar de la siguiente manera:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+diabetes_train$ClassPredicted <- round(predict(model,newdata=diabetes_train, 'response'),0)
+head(diabetes_train[, c('Outcome', 'ClassPredicted')])
+```
+
+<div style="text-align: justify"> 
+Lo que genera la siguiente matriz de confusión:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+table(diabetes_train$Outcome, diabetes_train$ClassPredicted)
+```
+<div style="text-align: justify"> 
+Teniendo una precisión de 0.79, como se muestra
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+fitted.results <- predict(model,newdata=diabetes_train,type='response')
+fitted.results <- ifelse(fitted.results > 0.5,1,0)
+misClasificError <- mean(fitted.results != diabetes_train$Outcome)
+print(paste('Accuracy',1-round(misClasificError, 2)))
+```
+
+# 6.	¿Qué variables son significativas? Ejecute la prueba de hipótesis respectiva. Construya intervalos de confianza para los coeficientes de regresión al 97.5%
+## Significancia del modelo
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+summary(model)
+```
+<div style="text-align: justify"> 
+Como se puede observar la varaible *Pregnancies, Glucose, BloodPressure, BMI y DiabetesPedigreeFunction*, son las varaibles más significativas para el modelo. Dado que el valor-p de cada uno de los coeficientes mencionados son menores a 0.05.
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+anova(model, test="Chisq")
+```
+
+## Intervalos de confianza
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+for (var in c(colnames(diabetes[,1:8]))){
+  print(var)
+  print(confint(model, var, 0.95))
+}
+```
+
+# 7.	Interprete los coeficientes de regresión $ßi$ y de los exp($ßi$)
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+exp(coef(model))
+```
+<div style="text-align: justify"> 
+Dado que las siguientes variables son las significativas: *Pregnancies, Glucose, BloodPressure, BMI y DiabetesPedigreeFunction*, se puede decir que la presencia de Pregnancies o embarazo, incrementa las probabilidades de que genere diabetes en 1.13 veces más, la Glucosa en 1.03, el BMI en 1.10 y por ultimo Diabetes Pedigree Function incrementa 3.24 veces más las probabilidades de ser diagnosticado con diabetes. Mientra que BloodPressure o presión arterial tiende a disminuir 0.98 veces cuando este disminuye.
+</div>
+
+# 8.	Calcule y presente predicciones de datos
+<div style="text-align: justify"> 
+A continuación, se presentan los resultado de las predicciones para la clasificación de datos nuevos.
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+diabetes_pred <- read_excel('diabetes.xlsx', sheet = 'predicción')
+diabetes_pred$ClassPredicted <- round(predict(model,newdata=diabetes_pred, 'response'),0)
+diabetes_pred
+```
+
+# 9.	Presente la matriz de confusión del ajuste realizado con la data test.
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+diabetes_pred <- read_excel('diabetes.xlsx', sheet = 'predicción')
+diabetes_pred$ClassPredicted <- round(predict(model,newdata=diabetes_pred, 'response'),0)
+diabetes_pred
+```
+<div style="text-align: justify"> 
+Con una precisión de 0.77:
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+fitted.results <- predict(model,newdata=diabetes_test,type='response')
+fitted.results <- ifelse(fitted.results > 0.5,1,0)
+misClasificError <- mean(fitted.results != diabetes_test$Outcome)
+print(paste('Accuracy',1-round(misClasificError, 2)))
+```
+
+# 10.	Ejecute la regresión logística con los links: probit, cauchit y cloglog. Presente una tabla comparativa de los valores de la residual deviance. Interprete.
+<div style="text-align: justify"> 
+Como se puede observar, cloglog tienes un residual deviance de 573.8 siendo superior al resto de valores mientras, que logit tiene la menor deviance, con este ultimo se desarrollo el modelo para responder todas las preguntas anteriores
+</div>
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+model_probit <-glm(Outcome ~.,family=binomial(link='probit'),data=diabetes_train)
+model_cauchit <-glm(Outcome ~.,family=binomial(link='cauchit'),data=diabetes_train)
+model_cloglog <-glm2(Outcome ~.,family=binomial(link='cloglog'),data=diabetes_train)
+
+matrix(c('logit','probit', 'cauchit', 'cloglog', model$deviance, model_probit$deviance, model_cauchit$deviance, model_cloglog$deviance), 4,2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
