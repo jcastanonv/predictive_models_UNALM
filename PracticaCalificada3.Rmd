@@ -317,6 +317,278 @@ matrix(c('logit','probit', 'cauchit', 'cloglog', model$deviance, model_probit$de
 
 
 
+# Descripción
+
+<div style="text-align: justify"> 
+PARTE 2. Indicaciones:
+•	Utilice los datos de “diabetes.xlsx” para responder las siguientes preguntas.
+•	Semilla 987654321
+•	Partición 80%-20%
+•	Variable target: Pregnancies
+
+
+1.	Pruebe la hipótesis de que la variable “Pregnancies” tiene distribución Poisson con la función poisdisp.test
+2.	Ejecute la regresión poisson para Pregnancies con la data training.
+3.	Aplique 10-fold cross validation para calcular el valor de MSE con la data training.
+4.	¿Qué variables son significativas? Ejecute la prueba de hipótesis respectiva. Construya intervalos de confianza para los coeficientes de regresión al 97.5%.
+5.	Ejecute la regresión binomial negativa para Pregnancies con la data training.
+6.	Presente la MSE con la data training del punto (5)
+7.	Ejecute la regresión inflada de ceros y compare con los resultados obtenidos en (3) y (4).
+8.	Ejecute la regresión hurdle y compare con los resultados obtenidos en (3), (4) y (5).
+
+</div>
+
+# Variables
+<div style="text-align: justify"> 
+**Pregnancies**
+**Glucose**
+**BloodPressure**
+**SkinThickness**
+**Insulin**
+**BMI**
+**DiabetesPedigreeFunction**
+**Age**
+**Outcome**
+</div>
+
+
+
+# Lectura de Datos
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+bd_diabetes<-read_excel("diabetes.xlsx")
+
+bd_diabetes$Pregnancies <- factor(diabetes$Pregnancies)
+```
+
+# Separación de data : Entrenamiento (0.8) y prueba (0.2)
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+set.seed(987654321)
+
+bd_diabetes %>% initial_split(prop = 0.80, strata =  Pregnancies) -> division
+
+division %>% training() -> training_set
+
+division %>% testing() -> testing_set
+
+bd_diabetes %>% nrow();training_set %>% nrow();testing_set %>% nrow()
+```
+
+
+# Desarrollo de Preguntas
+
+#1.Pruebe la hipótesis de que la variable “Pregnancies” tiene distribución Poisson con la función poisdisp.test
+
+<div style="text-align: justify"> 
+Representación gráfica de la variable Target "Pregnancies
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+hist(bd_diabetes$Pregnancies, xlab = "Pregnancies", ylab = "Frecuencia", las=1, main = "", col = "gray")
+plot(density(bd_diabetes$Pregnancies), xlab = "Pregnancies", ylab = "Densidad", las=1, main = "")
+
+```
+<div style="text-align: justify"> 
+
+Interpretación :Gráficamente se puede apreciar que la variable "Pregnancies" tiene
+gran acumulación de ceros en sus resultados. En este sentido, se puede decir que los datos 
+muestran una distribución asimétrica con sesgo positivo.
+</div>
+
+<div style="text-align: justify"> 
+Prueba de hipótesis distribución Poisson
+
+* $H0$: el número de mujeres embarazadas en un espacio de tiempo sigue una distribución Poisson.
+
+* $H1$: el número de mujeres embarazadas en un espacio de tiempo  no sigue una distribución Poisson.
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+res1<-pois.test(bd_diabetes$Pregnancies)
+res1
+```
+
+<div style="text-align: justify"> 
+Interpretación: A un nivel de 0.05 existe evidencia para rechazar la hipótesis nula.
+En este sentido, la variable "Pregnancies" no sigue una distribución de poisson.
+</div>
+
+<div style="text-align: justify"> 
+Prueba de hipótesis para la dispersión presente en los valores
+
+* $H0$: La variable "Pregnancies" no presenta dispersión.
+
+* $H1$: La variable "Pregnancies" presenta alta/baja dispersión.
+
+</div>
+
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+res2<-poisdisp.test(bd_diabetes$Pregnancies,"over",logged = FALSE)
+res2
+```
+
+<div style="text-align: justify"> 
+
+Interpretación: A un nivel de 0.05 existe evidencia para rechazar la hipótesis nula.
+En este sentido, la variable "Pregnancies" presenta sobre dispersión. Ello se
+puede asociar a la canidad de ceros existente.
+
+</div>
+
+#2.Ejecute la regresión poisson para Pregnancies con la data training.
+
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+m1 <- glm(Pregnancies ~., family="poisson", data=training_set)
+m1
+
+```
+
+<div style="text-align: justify"> 
+
+Para realizar una prueba de  bondad de ajuste para el modelo general podemos hacer uso de lo resultados de Desvianza
+
+
+Prueba de hipótesis bondad de ajuste
+
+* $H0$: El modelo de Poisson es apropiado.
+
+* $H1$: El modelo de Poisson no es apropiado
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+with(m1, cbind(res.deviance = deviance, df = df.residual,
+               p = pchisq(deviance, df.residual, lower.tail=FALSE)))
+```
+
+<div style="text-align: justify"> 
+Interpretación : A un nivel de significancia del 0.05 se rechaza la Ho.
+Es decir, el modelo Poisson no es apropiado,
+</div>
+
+#3. Aplique 10-fold cross validation para calcular el valor de MSE con la data training.
+
+<div style="text-align: justify"> 
+Se emplea la función cv.glm() para la validación, empleando en este caso k=10
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+set.seed(1)
+cv_error <- cv.glm(data = training_set, glmfit =m1 , K = 10)
+cv_error$delta
+
+```
+
+<div style="text-align: justify">
+La estimación de error del modelo lineal mediante K-fold Cross-Validation k=10 es de 9.490342 (MSE corregido)
+</div>
+
+
+#4.¿Qué variables son significativas? Ejecute la prueba de hipótesis respectiva. 
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+summary(m1 <- glm(Pregnancies ~., family="poisson", data=training_set))
+```
+
+<div style="text-align: justify">
+
+Interpretación: A un nivel de significancia de 0,05 las variables significativas para el modelo son *DiabetesPedigreeFunction,Age Outcome*                   
+
+</div>
+
+#5. Ejecute la regresión binomial negativa para Pregnancies con la data training.
+
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+m2 <- glm.nb( Pregnancies~ ., data =training_set )
+```
+
+
+<div style="text-align: justify"> 
+
+Para realizar una prueba de  bondad de ajuste para el modelo general podemos hacer uso de lo resultados de Desvianza
+
+
+Prueba de hipótesis bondad de ajuste
+
+* $H0$: El modelo de Binomial Negativa es apropiado.
+
+* $H1$: El modelo de Binomial Negativa no es apropiado
+</div>
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+with(m2, cbind(res.deviance = deviance, df = df.residual,
+               p = pchisq(deviance, df.residual, lower.tail=FALSE)))
+```
+
+<div style="text-align: justify"> 
+Interpretación : A un nivel de significancia del 0.05 se rechaza la Ho.
+Es decir, el modelo Binomial Negativa  no es apropiado, 
+</div>
+
+#6.	Presente la MSE con la data training del punto (5)
+
+Se emplea la función cv.glm() para la validación, empleando en este caso k=10
+
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+set.seed(1)
+cv_error2 <- cv.glm(data = training_set, glmfit =m2 , K = 10)
+cv_error2$delta
+```
+
+<div style="text-align: justify">
+La estimación de error del modelo  de regresión "binomial negativa" mediante K-fold Cross-Validation k=10 es de 11.19859 (MSE corregido)
+</div>
+
+#7.Ejecute la regresión inflada de ceros y compare con los resultados obtenidos anteriormente
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+m3<-zeroinfl(Pregnancies ~ ., data =training_set , dist = "negbin")
+
+cv_error3 <- cv.glm(data = training_set, glmfit =m3 , K = 10)
+cv_error3$delta
+
+```
+
+<div style="text-align: justify">
+La estimación de error del modelo "zeroinfl" mediante K-fold Cross-Validation k=10 es de 9.980023 (MSE corregido)
+</div>
+
+#8.Ejecute la regresión hurdle y compare con los resultados obtenidos.
+
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+cv_error4 <- cv.glm(data = training_set, glmfit =m3 , K = 10)
+cv_error4$delta
+
+```
+
+<div style="text-align: justify">
+La estimación de error del modelo "hurdle" mediante K-fold Cross-Validation k=10 es de 9.963759 (MSE corregido)
+</div>
+
+
+
+#9 Comparación de MSE de los 4 modelos analizados bajo la metodología K-fold validación cruzada
+
+```{r echo=TRUE, fig.show='hold', message=FALSE, warning=FALSE}
+res_MSE <- data.frame(
+  "Modelo" = c("Poisson", "Binomial Negativo", "Cero_Inflados", "Hurdle"), 
+  "MSE" = c(cv_error$delta[[2]],cv_error2$delta[[2]],cv_error3$delta[[2]]
+               ,cv_error4$delta[[2]]))
+
+res_MSE
+```
+
+Podemos apreciar que el modelo Binomial Negativo presenta un mayor MSE y el de Hurdle el menor. En este sentido, este último tiene mejor desempeño debido a su menor nivel de error.
+
+
+
+
+
 
 
 
